@@ -1,0 +1,17 @@
+
+/* Estilo para dar um feedback visual ao passar o mouse sobre um item da lista */
+.accordion-button:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Garante que as quebras de linha na descrição sejam respeitadas e ajusta a cor do texto */
+.client-description {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 0.95rem;
+    color: #555; /* Cor de texto mais escura para melhor leitura em fundo branco */
+}
+
+.accordion{
+    margin-bottom: 40px;
+}
