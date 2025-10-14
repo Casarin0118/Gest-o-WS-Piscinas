@@ -1,16 +1,10 @@
-// script.js - VERSÃO COMPLETA E FINAL
-
 document.addEventListener('DOMContentLoaded', () => {
     
     let todosClientes = [];
     const form = document.getElementById('formAgendamento');
     const filtroBuscaEl = document.getElementById('filtroBusca');
     const listaClientesEl = document.getElementById('listaClientes');
-    
-    // Seleciona o botão de salvar do modal
     const salvarAlteracoesBtn = document.getElementById('salvarAlteracoesBtn');
-    
-    // Instancia o modal do Bootstrap para podermos controlá-lo via JS
     const modalEditar = new bootstrap.Modal(document.getElementById('modalEditarCliente'));
 
     const renderizarClientes = (clientesParaRenderizar) => {
@@ -34,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <hr>
                             <p><strong>Serviço:</strong></p>
                             <p class="client-description">${cliente.descricao}</p>
-                            
                             <button class="btn btn-sm btn-secondary mt-2" onclick="abrirModalEdicao(${cliente.id})">
                                 Editar
                             </button>
@@ -48,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const buscarClientesDaAPI = async () => {
         try {
-            const response = await fetch('http://127.0.0.1:8000/clientes/');
+            const response = await fetch('https://api-ws-uxxo.onrender.com/clientes/');
             if (!response.ok) throw new Error('Falha ao buscar dados da API');
             const data = await response.json();
             todosClientes = data;
@@ -68,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descricao: document.getElementById('descricao').value
         };
         try {
-            const response = await fetch('http://127.0.0.1:8000/clientes/', {
+            const response = await fetch('https://api-ws-uxxo.onrender.com/clientes/', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(novoCliente),
@@ -82,8 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Função para abrir o modal e preencher com os dados do cliente
-    // A deixamos no escopo global (window) para que o 'onclick' do HTML a encontre
     window.abrirModalEdicao = (clienteId) => {
         const clienteParaEditar = todosClientes.find(c => c.id === clienteId);
         if (clienteParaEditar) {
@@ -96,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Função para salvar as alterações feitas no modal
     const salvarAlteracoes = async () => {
         const clienteId = document.getElementById('clienteIdEditar').value;
         const dadosAtualizados = {
@@ -105,18 +95,15 @@ document.addEventListener('DOMContentLoaded', () => {
             telefone: document.getElementById('telefoneEditar').value,
             descricao: document.getElementById('descricaoEditar').value
         };
-
         try {
-            const response = await fetch(`http://127.0.0.1:8000/clientes/${clienteId}`, {
+            const response = await fetch(`https://api-ws-uxxo.onrender.com/clientes/${clienteId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(dadosAtualizados)
             });
             if (!response.ok) throw new Error('Falha ao atualizar o cliente.');
-            
             modalEditar.hide();
-            await buscarClientesDaAPI(); // Atualiza a lista na tela principal
-            
+            await buscarClientesDaAPI();
         } catch (error) {
             console.error('Erro:', error);
             alert('Não foi possível salvar as alterações.');
@@ -132,11 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderizarClientes(clientesFiltrados);
     };
 
-    // --- EVENT LISTENERS ---
     form.addEventListener('submit', adicionarCliente);
     filtroBuscaEl.addEventListener('input', filtrarClientes);
     salvarAlteracoesBtn.addEventListener('click', salvarAlteracoes);
 
-    // --- INICIALIZAÇÃO ---
     buscarClientesDaAPI();
 });
