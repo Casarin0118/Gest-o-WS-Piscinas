@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const buscarClientesDaAPI = async () => {
         try {
-            const response = await fetch('https://api-ws-six.vercel.app/clientes');
+            const response = await fetch('https://api-ws-uxxo.onrender.com/clientes');
             if (!response.ok) throw new Error('Falha ao buscar dados da API');
             const data = await response.json();
             todosClientes = data;
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descricao: document.getElementById('descricao').value
         };
         try {
-            const response = await fetch('https://api-ws-six.vercel.app/clientes/', {
+            const response = await fetch('https://api-ws-uxxo.onrender.com/clientes/', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(novoCliente),
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descricao: document.getElementById('descricaoEditar').value
         };
         try {
-            const response = await fetch(`https://api-ws-six.vercel.app/clientes/${clienteId}`, {
+            const response = await fetch(`https://api-ws-uxxo.onrender.com/clientes/${clienteId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(dadosAtualizados)
@@ -126,3 +126,4 @@ document.addEventListener('DOMContentLoaded', () => {
     buscarClientesDaAPI();
 
 });
+
