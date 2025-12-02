@@ -1,94 +1,543 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Clientes</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <main class="container mt-4 mb-5">
-        <header class="mb-4">
-            <h1>Agendamento de Visitas WS Piscinas</h1>
-            <p class="lead">Adicione e gerencie os agendamentos de seus clientes.</p>
-        </header>
+    <title>WS Piscinas - Gestão de Agendamentos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript">
+        // Chave de armazenamento local
+        const STORAGE_KEY = 'ws_piscinas_appointments';
+        let appointments = [];
 
-        <section class="card mb-4">
-            <div class="card-body">
-                <h2 class="card-title h4">Novo Agendamento</h2>
-                <form id="formAgendamento">
-                    <div class="mb-3">
-                        <label for="nome" class="form-label">Nome do Cliente</label>
-                        <input type="text" class="form-control" id="nome" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="endereco" class="form-label">Endereço (Rua, Número, Cidade)</label>
-                        <input type="text" class="form-control" id="endereco" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="telefone" class="form-label">Telefone</label>
-                        <input type="tel" class="form-control" id="telefone" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="descricao" class="form-label">Descrição do Serviço</label>
-                        <textarea class="form-control" id="descricao" rows="3" required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Agendar Visita</button>
-                </form>
-            </div>
-        </section>
+        // --- Funções de Persistência (localStorage) ---
+        const loadAppointments = () => {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                appointments = data ? JSON.parse(data) : [];
+                console.log("Agendamentos carregados do localStorage:", appointments.length);
+            } catch (error) {
+                console.error("Erro ao carregar dados do localStorage:", error);
+                appointments = [];
+            }
+        };
 
-        <hr>
+        const saveAppointments = () => {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
+            } catch (error) {
+                console.error("Erro ao salvar dados no localStorage:", error);
+                showMessage("Erro ao salvar os dados localmente. O limite de armazenamento pode ter sido atingido.", 'error');
+            }
+        };
 
-        <section>
-            <h2 class="h3">Clientes Agendados</h2>
-            <div class="mb-3">
-                <label for="filtroBusca" class="form-label">Buscar por nome, rua ou cidade</label>
-                <input type="search" class="form-control" id="filtroBusca" placeholder="Digite para buscar...">
-            </div>
+        // --- Funções Auxiliares ---
+        
+        const formatPhone = (phone) => {
+            // Remove tudo que não for dígito
+            const cleaned = ('' + phone).replace(/\D/g, '');
+            // Verifica se é um telefone válido de 10 ou 11 dígitos (com DDD)
+            const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+            if (match) {
+                return `(${match[1]}) ${match[2]}-${match[3]}`;
+            }
+            return phone; // Retorna o original se não for formatável
+        };
+
+        const generateUniqueId = () => {
+            return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+        };
+
+        // Função assíncrona para ler um arquivo como Base64
+        const readFileAsBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                if (!file || !file.type.startsWith('image/')) {
+                    return resolve(null);
+                }
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(file);
+            });
+        };
+
+        // --- Funções de Estado e UI ---
+
+        const renderAppointments = (currentAppointments) => {
+            const listElement = document.getElementById('appointment-list');
+            listElement.innerHTML = '';
             
-            <div class="accordion" id="listaClientes"></div>
-        </section>
-    </main>
+            if (currentAppointments.length === 0) {
+                listElement.innerHTML = `<div class="text-center py-8 text-gray-400">Nenhum agendamento encontrado.</div>`;
+                return;
+            }
 
-    <div class="modal fade" id="modalEditarCliente" tabindex="-1" aria-labelledby="modalEditarClienteLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h1 class="modal-title fs-5" id="modalEditarClienteLabel">Editar Agendamento</h1>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <form id="formEditar">
-              <input type="hidden" id="clienteIdEditar">
-              <div class="mb-3">
-                  <label for="nomeEditar" class="form-label">Nome do Cliente</label>
-                  <input type="text" class="form-control" id="nomeEditar" required>
-              </div>
-              <div class="mb-3">
-                  <label for="enderecoEditar" class="form-label">Endereço</label>
-                  <input type="text" class="form-control" id="enderecoEditar" required>
-              </div>
-              <div class="mb-3">
-                  <label for="telefoneEditar" class="form-label">Telefone</label>
-                  <input type="tel" class="form-control" id="telefoneEditar" required>
-              </div>
-              <div class="mb-3">
-                  <label for="descricaoEditar" class="form-label">Descrição do Serviço</label>
-                  <textarea class="form-control" id="descricaoEditar" rows="3" required></textarea>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-primary" id="salvarAlteracoesBtn">Salvar Alterações</button>
-          </div>
+            currentAppointments.forEach(app => {
+                const statusColor = app.isDone ? 'bg-emerald-600' : 'bg-red-600';
+                const statusText = app.isDone ? 'FEITO' : 'PENDENTE';
+                const statusIcon = app.isDone ? `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>` : `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+                const appElement = document.createElement('div');
+                appElement.className = `p-4 mb-3 border border-blue-600/30 rounded-xl shadow-lg transition duration-300 ease-in-out hover:shadow-blue-500/50 bg-gray-800/50`;
+                
+                // Geração do HTML para fotos (se existirem)
+                let photosHTML = '';
+                const photosArray = app.photosBase64 || []; // Assume a nova chave
+                
+                if (photosArray.length > 0) {
+                    const photoImgs = photosArray.map((base64, index) => `
+                        <img src="${base64}" alt="Foto do Serviço ${index + 1}" 
+                             class="w-24 h-24 object-cover rounded-md border border-blue-600/50 shadow-md">
+                    `).join('');
+                    
+                    photosHTML = `
+                        <div class="mt-3 pt-3 border-t border-gray-700/50">
+                            <p class="text-xs text-gray-500 mb-2">Fotos Anexadas (${photosArray.length}):</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${photoImgs}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Fallback para photoLink se a estrutura antiga ainda estiver presente (para compatibilidade)
+                else if (app.photoLink) {
+                     photosHTML = `<div class="mt-3 pt-3 border-t border-gray-700/50"><p class="text-xs text-gray-500">Link da Foto: <a href="${app.photoLink}" target="_blank" class="text-blue-400 hover:text-blue-300 truncate">${app.photoLink}</a></p></div>`;
+                }
+
+                appElement.innerHTML = `
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div class="flex-1 min-w-0 mb-2 md:mb-0">
+                            <h3 class="text-xl font-bold text-blue-400 truncate">${app.name}</h3>
+                            <p class="text-sm text-gray-300 mt-1 flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-gray-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path></svg>
+                                ${app.date} às ${app.time}
+                            </p>
+                            <p class="text-sm text-gray-400 mt-1">
+                                ${app.street}, ${app.number}, ${app.neighborhood}, ${app.city}
+                            </p>
+                            <p class="text-sm text-gray-400">
+                                Tel: ${formatPhone(app.phone)}
+                            </p>
+                            <p class="text-sm mt-2 text-gray-200">
+                                <span class="font-semibold text-blue-300">Serviço:</span> ${app.description}
+                            </p>
+                        </div>
+                        <div class="flex flex-col items-end space-y-2">
+                            <span class="inline-flex items-center px-3 py-1 text-xs font-semibold leading-5 rounded-full ${statusColor} text-white shadow-md">
+                                ${statusIcon} ${statusText}
+                            </span>
+                            <div class="flex space-x-2">
+                                <button onclick="window.toggleStatus('${app.id}', ${app.isDone})" class="text-xs px-3 py-1 rounded-lg font-medium transition duration-150 ${app.isDone ? 'bg-red-700 hover:bg-red-800' : 'bg-emerald-700 hover:bg-emerald-800'} text-white shadow-md">
+                                    Marcar como ${app.isDone ? 'Pendente' : 'Feito'}
+                                </button>
+                                <button onclick="window.deleteAppointment('${app.id}')" class="text-xs px-3 py-1 rounded-lg font-medium bg-gray-600 hover:bg-gray-700 text-white shadow-md">
+                                    Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    ${photosHTML}
+                `;
+                listElement.appendChild(appElement);
+            });
+        };
+
+        const renderCalendar = () => {
+            const calendarEl = document.getElementById('calendar-view');
+            
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth(); // 0-indexed
+            
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const appointmentsByDay = appointments.reduce((acc, app) => {
+                const appDate = new Date(app.date + 'T00:00:00'); 
+                if (appDate.getFullYear() === year && appDate.getMonth() === month) {
+                    const day = appDate.getDate();
+                    acc[day] = (acc[day] || 0) + 1;
+                }
+                return acc;
+            }, {});
+
+            let calendarHTML = `<div class="grid grid-cols-7 gap-1 text-center font-medium text-gray-400">
+                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+            </div>
+            <div class="grid grid-cols-7 gap-1 mt-1">`;
+            
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                calendarHTML += `<div class="p-2"></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const appCount = appointmentsByDay[day] || 0;
+                const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                
+                let dayClasses = `p-2 rounded-lg cursor-pointer transition duration-150`;
+                let content = day;
+
+                if (isToday) {
+                    dayClasses += ' bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/50';
+                } else if (appCount > 0) {
+                    dayClasses += ' bg-blue-700/50 text-blue-200 hover:bg-blue-600/70 relative group';
+                    content += `<span class="absolute -top-1 -right-1 w-4 h-4 text-xs flex items-center justify-center bg-red-500 text-white rounded-full ring-2 ring-gray-900/50">${appCount}</span>`;
+                } else {
+                    dayClasses += ' text-gray-400 hover:bg-gray-700/50';
+                }
+
+                const dayString = `${year}-${(month+1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                calendarHTML += `<div class="${dayClasses}" onclick="window.filterByDate('${dayString}')">${content}</div>`;
+            }
+
+            calendarHTML += `</div>`;
+            calendarEl.innerHTML = calendarHTML;
+            document.getElementById('current-month-year').textContent = new Date(year, month).toLocaleString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+        };
+
+        const updateCityFilterOptions = () => {
+            const uniqueCities = [...new Set(appointments.map(app => app.city))].sort();
+            const cityFilterEl = document.getElementById('city-filter');
+            const currentCityFilter = cityFilterEl.value;
+            cityFilterEl.innerHTML = '<option value="">Todas as Cidades</option>';
+            uniqueCities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city.toLowerCase(); 
+                option.textContent = city;
+                if (city.toLowerCase() === currentCityFilter) {
+                    option.selected = true;
+                }
+                cityFilterEl.appendChild(option);
+            });
+        };
+
+        const applyFilters = () => {
+            const searchInput = document.getElementById('search-input').value.toLowerCase();
+            const cityFilter = document.getElementById('city-filter').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+            const dateFilter = document.getElementById('date-filter').value;
+
+            const filtered = appointments.filter(app => {
+                const matchesSearch = app.name.toLowerCase().includes(searchInput) || 
+                                      app.street.toLowerCase().includes(searchInput) ||
+                                      app.city.toLowerCase().includes(searchInput);
+
+                const matchesCity = cityFilter === '' || app.city.toLowerCase() === cityFilter;
+
+                const matchesStatus = statusFilter === '' || 
+                                      (statusFilter === 'pending' && !app.isDone) ||
+                                      (statusFilter === 'done' && app.isDone);
+                
+                const matchesDate = dateFilter === '' || app.date === dateFilter;
+
+                return matchesSearch && matchesCity && matchesStatus && matchesDate;
+            });
+
+            filtered.sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time));
+
+            renderAppointments(filtered);
+        };
+
+        window.filterByDate = (date) => {
+            document.getElementById('date-filter').value = date;
+            applyFilters();
+            document.getElementById('appointment-list-section').scrollIntoView({ behavior: 'smooth' });
+        };
+
+
+        // --- Funções de CRUD (localStorage) ---
+
+        const saveAppointment = async (event) => {
+            event.preventDefault();
+            
+            const form = event.target;
+            const files = form.photos.files;
+            let photosBase64 = [];
+            
+            // 1. Lidar com a leitura dos arquivos (assíncrona)
+            if (files.length > 0) {
+                 try {
+                    // Mapeia os arquivos para um array de Promessas de leitura Base64
+                    const readPromises = Array.from(files).map(file => readFileAsBase64(file));
+                    // Espera que todas as leituras terminem
+                    photosBase64 = await Promise.all(readPromises);
+                    // Filtra qualquer item nulo (se não for uma imagem válida)
+                    photosBase64 = photosBase64.filter(p => p); 
+                 } catch (error) {
+                    console.error("Erro ao ler arquivos:", error);
+                    showMessage("Erro ao ler uma ou mais fotos. Tente usar arquivos menores.", 'error');
+                    return; 
+                 }
+            }
+
+            // 2. Cria o novo objeto de agendamento
+            const newAppointment = {
+                id: generateUniqueId(),
+                name: form.clientName.value.trim(),
+                street: form.street.value.trim(),
+                number: form.number.value.trim(),
+                neighborhood: form.neighborhood.value.trim(),
+                city: form.city.value.trim(),
+                phone: form.phone.value.trim(),
+                description: form.description.value.trim(),
+                date: form.appointmentDate.value,
+                time: form.appointmentTime.value,
+                photosBase64: photosBase64, // Armazena o array Base64
+                isDone: false, 
+                createdAt: new Date().toISOString()
+            };
+
+            appointments.push(newAppointment);
+            saveAppointments();
+            
+            form.reset();
+            document.getElementById('date-filter').value = '';
+            
+            initApp(); 
+            showMessage("Agendamento cadastrado com sucesso!", 'success');
+        };
+
+        window.toggleStatus = (id, currentStatus) => {
+            const index = appointments.findIndex(app => app.id === id);
+            if (index !== -1) {
+                appointments[index].isDone = !currentStatus;
+                saveAppointments();
+                initApp(); 
+                showMessage(`Status alterado para ${!currentStatus ? 'FEITO' : 'PENDENTE'}!`, 'success');
+            }
+        };
+
+        window.deleteAppointment = (id) => {
+            const initialLength = appointments.length;
+            appointments = appointments.filter(app => app.id !== id);
+            
+            if (appointments.length < initialLength) {
+                saveAppointments();
+                initApp(); 
+                showMessage("Agendamento excluído com sucesso.", 'success');
+            }
+        };
+
+        // --- Mensagens de Feedback (Modal) ---
+        const showMessage = (text, type = 'info') => {
+            const modal = document.getElementById('message-modal');
+            const messageText = document.getElementById('message-text');
+            const iconElement = document.getElementById('message-icon');
+            
+            messageText.textContent = text;
+            modal.classList.remove('hidden');
+            
+            let color = 'bg-blue-600';
+            let icon = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+            if (type === 'success') {
+                color = 'bg-emerald-600';
+                icon = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            } else if (type === 'error') {
+                color = 'bg-red-600';
+                icon = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            }
+
+            modal.className = `fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300`;
+            document.getElementById('message-box').className = `p-6 rounded-xl shadow-2xl transform transition-transform duration-300 ${color} text-white`;
+            iconElement.innerHTML = icon;
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 3000);
+        };
+
+        // --- Inicialização ---
+        const initApp = () => {
+            loadAppointments();
+            updateCityFilterOptions();
+            applyFilters();
+            renderCalendar();
+            document.getElementById('user-id-display').textContent = 'Modo: 100% Offline (localStorage)';
+        };
+
+        window.onload = initApp;
+        window.saveAppointment = saveAppointment;
+        window.applyFilters = applyFilters;
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0D1B2A; /* Dark futuristic blue */
+        }
+        .futuristic-title {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px rgba(65, 204, 249, 0.7); /* Light blue glow */
+        }
+        .input-glow:focus {
+            --tw-ring-color: #41CCF9;
+            --tw-ring-opacity: 0.5;
+            box-shadow: 0 0 0 3px rgba(65, 204, 249, 0.5);
+            border-color: #41CCF9;
+        }
+        .container-section {
+            background-color: #1A2A3A; /* Slightly lighter inner panel */
+            border: 1px solid #2B3D4D;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+
+    <!-- Modal de Mensagens -->
+    <div id="message-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div id="message-box" class="p-6 rounded-xl shadow-2xl transform transition-transform duration-300 bg-blue-600 text-white flex items-center space-x-3">
+            <div id="message-icon"></div>
+            <p id="message-text" class="font-semibold"></p>
         </div>
-      </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js"></script>
+    <!-- Container Principal -->
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-10 py-4 border-b-2 border-blue-600/50">
+            <h1 class="futuristic-title text-5xl font-bold text-blue-400">
+                WS Piscinas
+            </h1>
+            <p class="text-xl text-gray-400 mt-2">Sistema de Gestão de Agendamentos (OFFLINE)</p>
+            <p id="user-id-display" class="text-xs text-gray-600 mt-1">Modo: 100% Offline (localStorage)</p>
+        </header>
+
+        <!-- Layout Flex (Cadastro & Calendário) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+            
+            <!-- Coluna de Cadastro -->
+            <div class="lg:col-span-2 p-6 rounded-xl container-section shadow-2xl">
+                <h2 class="text-3xl font-bold text-blue-300 mb-6">Novo Agendamento</h2>
+                <form id="appointment-form" onsubmit="window.saveAppointment(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Nome do Cliente -->
+                    <div class="md:col-span-2">
+                        <label for="clientName" class="block text-sm font-medium text-gray-300 mb-1">Nome do Cliente</label>
+                        <input type="text" id="clientName" name="clientName" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                    </div>
+
+                    <!-- Endereço -->
+                    <div class="md:col-span-2 grid grid-cols-4 gap-4">
+                        <div class="col-span-3">
+                            <label for="street" class="block text-sm font-medium text-gray-300 mb-1">Rua</label>
+                            <input type="text" id="street" name="street" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="number" class="block text-sm font-medium text-gray-300 mb-1">Número</label>
+                            <input type="text" id="number" name="number" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                    </div>
+                    
+                    <div class="md:col-span-2 grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="neighborhood" class="block text-sm font-medium text-gray-300 mb-1">Bairro</label>
+                            <input type="text" id="neighborhood" name="neighborhood" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                        <div>
+                            <label for="city" class="block text-sm font-medium text-gray-300 mb-1">Cidade</label>
+                            <input type="text" id="city" name="city" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                    </div>
+
+                    <!-- Telefone -->
+                    <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-300 mb-1">Telefone</label>
+                        <input type="tel" id="phone" name="phone" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow" placeholder="(99) 99999-9999">
+                    </div>
+
+                    <!-- Data e Hora -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="appointmentDate" class="block text-sm font-medium text-gray-300 mb-1">Data</label>
+                            <input type="date" id="appointmentDate" name="appointmentDate" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                        <div>
+                            <label for="appointmentTime" class="block text-sm font-medium text-gray-300 mb-1">Hora</label>
+                            <input type="time" id="appointmentTime" name="appointmentTime" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        </div>
+                    </div>
+
+                    <!-- Descrição do Serviço -->
+                    <div class="md:col-span-2">
+                        <label for="description" class="block text-sm font-medium text-gray-300 mb-1">Descrição do Serviço</label>
+                        <textarea id="description" name="description" required class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow" rows="3"></textarea>
+                    </div>
+
+                    <!-- Fotos (Upload de Arquivo) -->
+                    <div class="md:col-span-2">
+                        <label for="photos" class="block text-sm font-medium text-gray-300 mb-1">Fotos do Serviço (Opcional - Selecione do computador)</label>
+                        <input type="file" id="photos" name="photos" accept="image/*" multiple class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                        <p class="text-xs text-yellow-400 mt-1">⚠️ Aviso: Como o app é OFFLINE, as fotos são salvas no navegador. Evite fotos muito grandes para não atingir o limite de 5MB do armazenamento.</p>
+                    </div>
+
+                    <!-- Botão de Cadastro -->
+                    <div class="md:col-span-2 mt-4">
+                        <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-xl transition duration-200 shadow-lg shadow-blue-500/50">
+                            CADASTRAR AGENDAMENTO
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Coluna do Calendário -->
+            <div class="p-6 rounded-xl container-section shadow-2xl h-fit">
+                <h2 class="text-2xl font-bold text-blue-300 mb-4 text-center">Calendário</h2>
+                <h3 id="current-month-year" class="text-xl font-semibold text-center mb-4 text-white"></h3>
+                <div id="calendar-view" class="bg-gray-800/50 p-3 rounded-lg border border-blue-600/30">
+                    <!-- O calendário será renderizado aqui pelo JavaScript -->
+                    <div class="text-center text-gray-500">Carregando Calendário...</div>
+                </div>
+                <p class="text-xs text-gray-500 mt-4 text-center">Clique em um dia com agendamento (<span class="text-red-500 font-bold">●</span>) para filtrar a lista.</p>
+                <button onclick="window.filterByDate('')" class="w-full mt-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition duration-200">
+                    Remover Filtro de Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Lista de Agendamentos (Busca e Filtros) -->
+        <div id="appointment-list-section" class="p-6 rounded-xl container-section shadow-2xl mt-10">
+            <h2 class="text-3xl font-bold text-blue-300 mb-6">Lista de Agendamentos</h2>
+            
+            <!-- Filtros e Busca -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <!-- Busca por Nome/Endereço -->
+                <div class="md:col-span-2">
+                    <label for="search-input" class="block text-sm font-medium text-gray-300 mb-1">Buscar (Nome ou Endereço)</label>
+                    <input type="text" id="search-input" oninput="window.applyFilters()" placeholder="Digite o nome, rua ou cidade..." class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 input-glow">
+                </div>
+                
+                <!-- Filtro por Cidade -->
+                <div>
+                    <label for="city-filter" class="block text-sm font-medium text-gray-300 mb-1">Filtrar por Cidade</label>
+                    <select id="city-filter" onchange="window.applyFilters()" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white input-glow appearance-none">
+                        <option value="">Todas as Cidades</option>
+                        <!-- Opções preenchidas pelo JS -->
+                    </select>
+                </div>
+
+                <!-- Filtro por Status -->
+                <div>
+                    <label for="status-filter" class="block text-sm font-medium text-gray-300 mb-1">Filtrar por Status</label>
+                    <select id="status-filter" onchange="window.applyFilters()" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white input-glow appearance-none">
+                        <option value="">Todos</option>
+                        <option value="pending">Pendente (Vermelho)</option>
+                        <option value="done">Feito (Verde)</option>
+                    </select>
+                </div>
+
+                <!-- Campo de Data Oculto para uso com o Calendário -->
+                <input type="hidden" id="date-filter">
+            </div>
+
+            <!-- Lista de Agendamentos -->
+            <div id="appointment-list">
+                <div class="text-center py-8 text-gray-400">Carregando agendamentos...</div>
+                <!-- Agendamentos serão renderizados aqui -->
+            </div>
+        </div>
+
+    </div>
 </body>
 </html>
